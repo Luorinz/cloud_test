@@ -1,0 +1,24 @@
+runtime: python27
+api_version: 1
+threadsafe: yes
+
+handlers:
+- url: /favicon\.ico
+  static_files: favicon.ico
+  upload: favicon\.ico
+
+- url: .*
+  script: main.app
+
+libraries:
+- name: webapp2
+  version: "2.5.2"
+- name: MySQLdb
+  version: "latest"
+
+env_variables:
+    CLOUDSQL_CONNECTION_NAME: poetic-pottery-218600:us-west2:myinstance
+    CLOUDSQL_USER: root
+    CLOUDSQL_PASSWORD: 123
+
+
