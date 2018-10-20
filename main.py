@@ -1,6 +1,3 @@
-
-
-
 import os
 
 import MySQLdb
@@ -40,79 +37,66 @@ def connect_to_cloudsql():
     return db
 
 
+def execute_sql(s):
+    db = connect_to_cloudsql()
+    cursor = db.cursor()
+    cursor.execute(s)
+    return cursor.fetchall()
+
+
+class UpdateHandler(webapp2.RequestHandler):
+    def post(self, userID, day, hour, step):
+
+
 
 class CurrentDayHandler(webapp2.RequestHandler):
+    #Todo: query for the stepcounts in the latest day in the database
     def get(self, userID):
-        self.response.headers['Content-Type'] = 'text/plain'
-
-        db = connect_to_cloudsql()
-        cursor = db.cursor()
-
-        sql1 = "use Steps"
-        sql2 = "select * from StepCounts where userID = '{}'".format(userID)
-
-        cursor.execute(sql1)
-        cursor.execute(sql2)
-
-        results = cursor.fetchall()
+        sql = "select day,totalStepCount from test.Day where user = '{}'".format(userID)
+        results = execute_sql(sql)
+        latest = 0
+        res = 0
+        for i in results:
+            if int(i[0]) > latest:
+                latest = int(i[0])
+                res = int(i[1])
 
 
-        # update_record_key = ndb.Key(UpdateRecord, userID)
-        # update_record = update_record_key.get()
-        #
-        # if update_record is None:
-        #     self.response.write('user {} not found'.format(userID))
-        #     return
-        #
-        # day = update_record.mostRecentDay
-        # step_record_key = ndb.Key(StepRecord, userID + '#' + day)
-        # step_record = step_record_key.get()
-        if results is ():
+        if results == ():
             self.response.write("User {} doesn't exist.".format(userID))
         else:
-            self.response.write('Total step count on day {} for {} is {}'.format(results[0][2], userID, results[0][6]))
+            self.response.write('Total step count on day {} for {} is {}'.format(latest, userID, res))
 
 
+class SingleDayHandler(webapp2.RequestHandler):
+    def get(self, userID, day):
+        sql = "select totalStepCount from test.Day where user = '{}' and day = {} ".format(userID, day)
+        results = execute_sql(sql)
+        if not results:
+            self.response.write("Failed")
+        else:
+
+            self.response.write('Total step count on day {} for {} is {}'.format(day, userID, results[0][0]))
 
 
-
+class RangeDayHandler(webapp2.RequestHandler):
+    def get(self, userID, startDay, numDays):
+        sql = "select totalStepCount from test.Day where user = '{}' and day >= {} and day <= {}".format(userID,startDay,int(startDay)+int(numDays)-1)
+        results = execute_sql(sql)
+        if not results:
+            self.response.write("Failed")
+        else:
+            sum = 0
+            for i in results:
+                sum += int(i[0])
+            self.response.write('Total step count from day {} to day {} for {} is {}'.format(startDay, int(startDay)+int(numDays)-1, userID, sum))
 
 class MainPage(webapp2.RequestHandler):
     def get(self):
         """Simple request handler that shows all of the MySQL variables."""
-        self.response.headers['Content-Type'] = 'text/plain'
 
-        #Connect to cloudSQL
-        db = connect_to_cloudsql()
-        cursor = db.cursor()
-        # cursor.execute('SHOW VARIABLES')
-        #
-        # for r in cursor.fetchall():
-        #     self.response.write('{}\n'.format(r))
-        # self.response.write(("Anda is learning this stuff!"))
-
-        #Test for entering the mysql
-        sql1 = "use Steps"
-        sql2 = "select * from StepCounts"
-
-        cursor.execute(sql1)  #
-        cursor.execute(sql2)
-        results = cursor.fetchall()	#
-        self.response.write("ID userID day hour step\n")	#
-        for row in results :
-            ID = row[0]
-            userID = row[1]
-            day = row[2]
-            hour = row[3]
-            step = row[6]
-
-            self.response.write(ID)
-            self.response.write(userID)
-
-            self.response.write(day)
-            self.response.write(hour)
-            self.response.write(step)
-            self.response.write('\n')
+        self.response.headers['Content-Type'] = 'text/html'
+        self.response.charset = "UTF-8"
 
 
         #Test for the project
@@ -135,14 +119,28 @@ class MainPage(webapp2.RequestHandler):
             '<p>step: non-negative integer number</p>'
             '<br />'
             '<a href="https://docs.google.com/document/d/1y4u422Btu3qJbLFZcJbS9jrbiVUJHNPL_3fDjUH72rA">Document</a>'
-            '</body></html>')
+            '</body></html>'
+                            )
 
 
+
+        sql = "select * from test.Day"
+
+        results = execute_sql(sql)
+        self.response.write("\n")
+        show_data = '<p>'
+        for row in results :
+            for i in row:
+                show_data += str(i) + "\t"
+            show_data += '</p>'
+            self.response.write(show_data)
+            show_data = '<p>'
 
 
 app = webapp2.WSGIApplication([
     ('/', MainPage),
-    # ('/current/(.*)', CurrentDayHandler),
-    webapp2.Route('/current/<userID:(.*)>', handler=CurrentDayHandler, name='blog-archive'),
+    webapp2.Route('/current/<userID:(.*)>', handler=CurrentDayHandler, name='CurrentDay'),
+    webapp2.Route('/single/<userID:(.*)>/<day:(.*)>', handler=SingleDayHandler, name='SingleDay'),
+    webapp2.Route('/range/<userID:(.*)>/<startDay:(.*)>/<numDays:(.*)>', handler=RangeDayHandler, name='RangeDay'),
 
 ], debug=True)
