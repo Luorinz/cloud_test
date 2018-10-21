@@ -41,16 +41,43 @@ def execute_sql(s):
     db = connect_to_cloudsql()
     cursor = db.cursor()
     cursor.execute(s)
+    db.commit()
     return cursor.fetchall()
 
 
 class UpdateHandler(webapp2.RequestHandler):
     def post(self, userID, day, hour, step):
+        self.response.headers['Content-Type'] = 'text/plain'
+        if int(day) < 0 or int(hour) < 0 or int(step) < 0 or int(hour) > 23 or int(step) > 5000:
+            self.response.write('invalid number')
+            self.response.set_status(400)
+        else:
+            hour_colomn = "h" + hour
+            sql1 = "INSERT INTO test.Hour (user, day, {}) VALUES ('{}', {}, {})".format(hour_colomn,userID,day,step)
+            sql2 = "select * from test.Hour"
+            db = connect_to_cloudsql()
+            cursor = db.cursor()
+            cursor.execute(sql1)
+            cursor.execute(sql2)
+            db.commit()
+            results = cursor.fetchall()
+            for row in results:
+                for i in row:
+                    self.response.write(str(i) + "  ")
+                self.response.write("\n")
+
+            self.response.write("post")
+            db.close()
+
+            self.response.write(self.request.get("content"))
+    def get(self):
+        self.response.write("get")
+
 
 
 
 class CurrentDayHandler(webapp2.RequestHandler):
-    #Todo: query for the stepcounts in the latest day in the database
+    # Todo: query for the stepcounts in the latest day in the database
     def get(self, userID):
         sql = "select day,totalStepCount from test.Day where user = '{}'".format(userID)
         results = execute_sql(sql)
@@ -72,6 +99,7 @@ class SingleDayHandler(webapp2.RequestHandler):
     def get(self, userID, day):
         sql = "select totalStepCount from test.Day where user = '{}' and day = {} ".format(userID, day)
         results = execute_sql(sql)
+
         if not results:
             self.response.write("Failed")
         else:
@@ -122,8 +150,6 @@ class MainPage(webapp2.RequestHandler):
             '</body></html>'
                             )
 
-
-
         sql = "select * from test.Day"
 
         results = execute_sql(sql)
@@ -137,10 +163,22 @@ class MainPage(webapp2.RequestHandler):
             show_data = '<p>'
 
 
+        self.response.out.write("""
+          <html>
+            <body>
+              <form action="/sign/1/1/1" method="post">
+                <div><textarea name="content" rows="3" cols="60"></textarea></div>
+                <div><input type="submit" value="Sign Guestbook"></div>
+              </form>
+            </body>
+          </html>""")
+
+
 app = webapp2.WSGIApplication([
     ('/', MainPage),
     webapp2.Route('/current/<userID:(.*)>', handler=CurrentDayHandler, name='CurrentDay'),
-    webapp2.Route('/single/<userID:(.*)>/<day:(.*)>', handler=SingleDayHandler, name='SingleDay'),
-    webapp2.Route('/range/<userID:(.*)>/<startDay:(.*)>/<numDays:(.*)>', handler=RangeDayHandler, name='RangeDay'),
+    webapp2.Route('/single/<userID:(.*)>/<day:([1-9][0-9]*)>', handler=SingleDayHandler, name='SingleDay'),
+    webapp2.Route('/range/<userID:(.*)>/<startDay:([1-9][0-9]*)>/<numDays:(\d+)>', handler=RangeDayHandler, name='RangeDay'),
+    webapp2.Route('/<userID:(.*)>/<day:([1-9][0-9]*)>/<hour:(\d+)>/<step:(\d+)>', handler=UpdateHandler, handler_method='post', name='Update'),
 
 ], debug=True)
