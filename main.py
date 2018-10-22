@@ -40,8 +40,8 @@ def connect_to_cloudsql():
 def execute_sql(s):
     db = connect_to_cloudsql()
     cursor = db.cursor()
+    cursor.execute('use Steps')
     cursor.execute(s)
-    db.commit()
     return cursor.fetchall()
 
 
@@ -53,33 +53,17 @@ class UpdateHandler(webapp2.RequestHandler):
             self.response.set_status(400)
         else:
             hour_colomn = "h" + hour
-            sql1 = "INSERT INTO test.Hour (user, day, {}) VALUES ('{}', {}, {})".format(hour_colomn,userID,day,step)
-            sql2 = "select * from test.Hour"
-            db = connect_to_cloudsql()
-            cursor = db.cursor()
-            cursor.execute(sql1)
-            cursor.execute(sql2)
-            db.commit()
-            results = cursor.fetchall()
-            for row in results:
-                for i in row:
-                    self.response.write(str(i) + "  ")
-                self.response.write("\n")
-
+            sql1 = "call add_data('{}',{},'{}',{})".format(userID, day, hour_colomn, step)
+            execute_sql(sql1)
             self.response.write("post")
-            db.close()
 
-            self.response.write(self.request.get("content"))
-    def get(self):
-        self.response.write("get")
-
-
+            # self.response.write(self.request.get("content"))
 
 
 class CurrentDayHandler(webapp2.RequestHandler):
     # Todo: query for the stepcounts in the latest day in the database
     def get(self, userID):
-        sql = "select day,totalStepCount from test.Day where user = '{}'".format(userID)
+        sql = "select day,totalStepCount from Steps.Day where user = '{}'".format(userID)
         results = execute_sql(sql)
         latest = 0
         res = 0
@@ -87,7 +71,6 @@ class CurrentDayHandler(webapp2.RequestHandler):
             if int(i[0]) > latest:
                 latest = int(i[0])
                 res = int(i[1])
-
 
         if results == ():
             self.response.write("User {} doesn't exist.".format(userID))
@@ -97,7 +80,7 @@ class CurrentDayHandler(webapp2.RequestHandler):
 
 class SingleDayHandler(webapp2.RequestHandler):
     def get(self, userID, day):
-        sql = "select totalStepCount from test.Day where user = '{}' and day = {} ".format(userID, day)
+        sql = "select totalStepCount from Steps.Day where user = '{}' and day = {} ".format(userID, day)
         results = execute_sql(sql)
 
         if not results:
@@ -109,7 +92,7 @@ class SingleDayHandler(webapp2.RequestHandler):
 
 class RangeDayHandler(webapp2.RequestHandler):
     def get(self, userID, startDay, numDays):
-        sql = "select totalStepCount from test.Day where user = '{}' and day >= {} and day <= {}".format(userID,startDay,int(startDay)+int(numDays)-1)
+        sql = "select totalStepCount from Steps.Day where user = '{}' and day >= {} and day <= {}".format(userID,startDay,int(startDay)+int(numDays)-1)
         results = execute_sql(sql)
         if not results:
             self.response.write("Failed")
@@ -119,13 +102,13 @@ class RangeDayHandler(webapp2.RequestHandler):
                 sum += int(i[0])
             self.response.write('Total step count from day {} to day {} for {} is {}'.format(startDay, int(startDay)+int(numDays)-1, userID, sum))
 
+
 class MainPage(webapp2.RequestHandler):
     def get(self):
         """Simple request handler that shows all of the MySQL variables."""
 
         self.response.headers['Content-Type'] = 'text/html'
         self.response.charset = "UTF-8"
-
 
         #Test for the project
         self.response.write(
@@ -150,7 +133,7 @@ class MainPage(webapp2.RequestHandler):
             '</body></html>'
                             )
 
-        sql = "select * from test.Day"
+        sql = "select * from Steps.Day"
 
         results = execute_sql(sql)
         self.response.write("\n")
@@ -162,16 +145,15 @@ class MainPage(webapp2.RequestHandler):
             self.response.write(show_data)
             show_data = '<p>'
 
-
-        self.response.out.write("""
-          <html>
-            <body>
-              <form action="/sign/1/1/1" method="post">
-                <div><textarea name="content" rows="3" cols="60"></textarea></div>
-                <div><input type="submit" value="Sign Guestbook"></div>
-              </form>
-            </body>
-          </html>""")
+        # self.response.out.write("""
+        #   <html>
+        #     <body>
+        #       <form action="/sign/1/1/1" method="post">
+        #         <div><textarea name="content" rows="3" cols="60"></textarea></div>
+        #         <div><input type="submit" value="Sign Guestbook"></div>
+        #       </form>
+        #     </body>
+        #   </html>""")
 
 
 app = webapp2.WSGIApplication([

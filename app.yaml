@@ -19,6 +19,6 @@ libraries:
 env_variables:
     CLOUDSQL_CONNECTION_NAME: poetic-pottery-218600:us-west2:myinstance
     CLOUDSQL_USER: root
-    CLOUDSQL_PASSWORD: 12345678
+    CLOUDSQL_PASSWORD: 123
 
 
