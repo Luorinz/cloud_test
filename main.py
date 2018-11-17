@@ -40,8 +40,13 @@ def connect_to_cloudsql():
 def execute_sql(s):
     db = connect_to_cloudsql()
     cursor = db.cursor()
-    cursor.execute('use Steps')
+
+    # Local test
+    # cursor.execute('use test')
+
+    cursor.execute('use Steps;')
     cursor.execute(s)
+    db.commit()
     return cursor.fetchall()
 
 
@@ -52,18 +57,17 @@ class UpdateHandler(webapp2.RequestHandler):
             self.response.write('invalid number')
             self.response.set_status(400)
         else:
-            hour_colomn = "h" + hour
-            sql1 = "call add_data('{}',{},'{}',{})".format(userID, day, hour_colomn, step)
-            execute_sql(sql1)
-            self.response.write("post")
+            hour_col = "h" + hour
+            update_hour = "insert into Hour(user,day,{2},step) values('{0}',{1},{3},{3}) on duplicate key update step = step + values({2}) - {2},{2} = values({2});".format(userID, day, hour_col, step)
+            execute_sql(update_hour)
+            self.response.write("successfully added/update")
 
-            # self.response.write(self.request.get("content"))
 
 
 class CurrentDayHandler(webapp2.RequestHandler):
     # Todo: query for the stepcounts in the latest day in the database
     def get(self, userID):
-        sql = "select day,totalStepCount from Steps.Day where user = '{}'".format(userID)
+        sql = "select day,step from Hour where user = '{}'".format(userID)
         results = execute_sql(sql)
         latest = 0
         res = 0
@@ -80,7 +84,7 @@ class CurrentDayHandler(webapp2.RequestHandler):
 
 class SingleDayHandler(webapp2.RequestHandler):
     def get(self, userID, day):
-        sql = "select totalStepCount from Steps.Day where user = '{}' and day = {} ".format(userID, day)
+        sql = "select step from Hour where user = '{}' and day = {} ".format(userID, day)
         results = execute_sql(sql)
 
         if not results:
@@ -92,7 +96,7 @@ class SingleDayHandler(webapp2.RequestHandler):
 
 class RangeDayHandler(webapp2.RequestHandler):
     def get(self, userID, startDay, numDays):
-        sql = "select totalStepCount from Steps.Day where user = '{}' and day >= {} and day <= {}".format(userID,startDay,int(startDay)+int(numDays)-1)
+        sql = "select step from Hour where user = '{}' and day >= {} and day <= {}".format(userID,startDay,int(startDay)+int(numDays)-1)
         results = execute_sql(sql)
         if not results:
             self.response.write("Failed")
@@ -102,6 +106,12 @@ class RangeDayHandler(webapp2.RequestHandler):
                 sum += int(i[0])
             self.response.write('Total step count from day {} to day {} for {} is {}'.format(startDay, int(startDay)+int(numDays)-1, userID, sum))
 
+
+class DeleteHandler(webapp2.RequestHandler):
+    def get(self):
+        sql = "truncate Hour;"
+        execute_sql(sql)
+        self.response.write("Database deleted")
 
 class MainPage(webapp2.RequestHandler):
     def get(self):
@@ -133,7 +143,7 @@ class MainPage(webapp2.RequestHandler):
             '</body></html>'
                             )
 
-        sql = "select * from Steps.Day"
+        sql = "select user,day,step from Hour;"
 
         results = execute_sql(sql)
         self.response.write("\n")
@@ -145,15 +155,6 @@ class MainPage(webapp2.RequestHandler):
             self.response.write(show_data)
             show_data = '<p>'
 
-        # self.response.out.write("""
-        #   <html>
-        #     <body>
-        #       <form action="/sign/1/1/1" method="post">
-        #         <div><textarea name="content" rows="3" cols="60"></textarea></div>
-        #         <div><input type="submit" value="Sign Guestbook"></div>
-        #       </form>
-        #     </body>
-        #   </html>""")
 
 
 app = webapp2.WSGIApplication([
@@ -162,5 +163,6 @@ app = webapp2.WSGIApplication([
     webapp2.Route('/single/<userID:(.*)>/<day:([1-9][0-9]*)>', handler=SingleDayHandler, name='SingleDay'),
     webapp2.Route('/range/<userID:(.*)>/<startDay:([1-9][0-9]*)>/<numDays:(\d+)>', handler=RangeDayHandler, name='RangeDay'),
     webapp2.Route('/<userID:(.*)>/<day:([1-9][0-9]*)>/<hour:(\d+)>/<step:(\d+)>', handler=UpdateHandler, handler_method='post', name='Update'),
+    webapp2.Route('/delete', handler=DeleteHandler, name='Delete')
 
 ], debug=True)
